@@ -1,0 +1,51 @@
+# Build outputs
+build/
+target/
+out/
+bin/
+.gradle/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.classpath
+.project
+.settings/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+docs/
+
+# Docker
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# Test outputs
+.testcontainers/
+
+# Logs
+*.log
+logs/
+
+# Environment files (never include in image)
+.env
+.env.*
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*~

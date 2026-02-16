@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker-compose up:*)",
+      "Bash(find:*)",
+      "Bash(xargs ls:*)",
+      "Bash(chmod:*)",
+      "Bash(./gradlew compileJava:*)",
+      "Bash(./gradlew test:*)",
+      "Bash(./gradlew check:*)",
+      "Bash(./gradlew clean compileJava:*)",
+      "Bash(./gradlew:*)",
+      "Bash(/mnt/c/Users/ertan/Desktop/LAB/githubProjects/Airello/src/main/java/ai/planmate/chat/dto/ChatThreadResponse.java << 'EOF'\npackage ai.planmate.chat.dto;\n\nimport java.time.Instant;\nimport java.util.UUID;\n\nimport lombok.AllArgsConstructor;\nimport lombok.Builder;\nimport lombok.Data;\nimport lombok.NoArgsConstructor;\n\n@Data\n@Builder\n@NoArgsConstructor\n@AllArgsConstructor\npublic class ChatThreadResponse {\n    private UUID id;\n    private UUID projectId;\n    private String title;\n    private Boolean isDefault;\n    private Instant createdAt;\n}\nEOF)",
+      "Bash(ls:*)",
+      "Bash(awk:*)",
+      "Bash(docker exec:*)",
+      "Bash(docker compose up:*)",
+      "Bash(timeout 30 bash:*)",
+      "Bash(docker compose:*)",
+      "Bash(docker logs:*)",
+      "Bash(git checkout:*)",
+      "Bash(netstat:*)",
+      "Bash(lsof:*)",
+      "Bash(docker stop:*)",
+      "Bash(curl:*)",
+      "Bash(docker inspect:*)",
+      "Bash(git commit:*)",
+      "Bash(docker ps:*)",
+      "Bash(docker rm:*)",
+      "Bash(test:*)",
+      "Bash(cat:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

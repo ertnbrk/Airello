@@ -1,0 +1,173 @@
+# ================================
+# Build & Dependencies
+# ================================
+HELP.md
+.gradle
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+target/
+bin/
+!**/src/main/**/bin/
+!**/src/test/**/bin/
+
+# ================================
+# IDE - IntelliJ IDEA
+# ================================
+.idea
+*.iws
+*.iml
+*.ipr
+out/
+!**/src/main/**/out/
+!**/src/test/**/out/
+
+# ================================
+# IDE - Eclipse / STS
+# ================================
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+# ================================
+# IDE - NetBeans
+# ================================
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+# ================================
+# IDE - VS Code
+# ================================
+.vscode/
+*.code-workspace
+
+# ================================
+# Environment & Secrets
+# ================================
+.env
+.env.local
+.env.*.local
+.env.production
+.env.development
+
+# API Keys & Secrets
+*.pem
+*.key
+*.p12
+*.jks
+*.keystore
+secrets/
+credentials/
+
+# ================================
+# Logs
+# ================================
+logs/
+*.log
+log/
+*.log.*
+
+# ================================
+# OS Generated
+# ================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*~
+
+# ================================
+# Docker & Infrastructure
+# ================================
+docker-compose.override.yml
+*.pid
+
+# ================================
+# Database
+# ================================
+*.db
+*.sqlite
+*.sqlite3
+
+# ================================
+# Temporary Files
+# ================================
+tmp/
+temp/
+*.tmp
+*.swp
+*.swo
+*.bak
+*.backup
+*.orig
+
+# ================================
+# Documentation (keep only README.md)
+# ================================
+# All documentation moved to docs/
+# Only README.md in root
+
+# ================================
+# AI Worker Python
+# ================================
+ai-worker/__pycache__/
+ai-worker/*.pyc
+ai-worker/.pytest_cache/
+ai-worker/venv/
+ai-worker/.venv/
+ai-worker/*.egg-info/
+
+# ================================
+# Test Coverage
+# ================================
+coverage/
+*.coverage
+.nyc_output/
+htmlcov/
+
+# ================================
+# Package Files
+# ================================
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# ================================
+# Terraform
+# ================================
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+# ================================
+# Kubernetes
+# ================================
+**/secrets.yaml
+**/secret.yaml
+
+# ================================
+# Claude Code
+# ================================
+.claude/settings.local.json

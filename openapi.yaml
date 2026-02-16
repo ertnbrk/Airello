@@ -1,0 +1,217 @@
+openapi: 3.0.3
+info:
+  title: Planmate API
+  description: AI-powered project management and agile planning platform
+  version: 1.0.0
+  contact:
+    name: Planmate Support
+    email: support@planmate.ai
+
+servers:
+  - url: https://api.planmate.ai/v1
+    description: Production
+  - url: https://api-staging.planmate.ai/v1
+    description: Staging
+  - url: http://localhost:8080/v1
+    description: Local Development
+
+security:
+  - BearerAuth: []
+
+paths:
+  /projects:
+    post:
+      summary: Create a new project
+      tags: [Projects]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProjectRequest'
+      responses:
+        '201':
+          description: Project created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectResponse'
+
+  /projects/{id}:
+    get:
+      summary: Get project by ID
+      tags: [Projects]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Project found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectResponse'
+
+  /projects/{id}/artifacts:
+    post:
+      summary: Upload artifact to project
+      tags: [Artifacts]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '201':
+          description: Artifact uploaded
+
+  /projects/{projectId}/issues:
+    post:
+      summary: Create a new issue
+      tags: [Agile]
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateIssueRequest'
+      responses:
+        '201':
+          description: Issue created
+
+  /projects/{projectId}/planning/auto:
+    post:
+      summary: Auto-generate sprint planning
+      tags: [Planning]
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Planning completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanningResult'
+
+  /me/export:
+    get:
+      summary: Export user data (GDPR)
+      tags: [Account]
+      responses:
+        '200':
+          description: Data export
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /me:
+    delete:
+      summary: Delete user account (GDPR)
+      tags: [Account]
+      responses:
+        '204':
+          description: Account deleted
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    CreateProjectRequest:
+      type: object
+      required:
+        - workspaceId
+        - name
+        - key
+      properties:
+        workspaceId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        key:
+          type: string
+          pattern: '^[A-Z]{2,10}$'
+        description:
+          type: string
+
+    ProjectResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        key:
+          type: string
+
+    CreateIssueRequest:
+      type: object
+      required:
+        - projectId
+        - type
+        - title
+      properties:
+        projectId:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [STORY, TASK, BUG]
+        title:
+          type: string
+        description:
+          type: string
+        priority:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+        storyPoints:
+          type: integer
+          minimum: 0
+          maximum: 100
+
+    PlanningResult:
+      type: object
+      properties:
+        sprints:
+          type: array
+          items:
+            type: object
+        summary:
+          type: string
+        criticalPath:
+          type: array
+          items:
+            type: string

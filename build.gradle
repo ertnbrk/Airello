@@ -1,0 +1,158 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.2.1'
+    id 'io.spring.dependency-management' version '1.1.4'
+    id 'checkstyle'
+    id 'com.diffplug.spotless' version '6.23.3'
+}
+
+group = 'ai.planmate'
+version = '0.0.1-SNAPSHOT'
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+ext {
+    flywayVersion = '10.17.0'
+}
+dependencies {
+    // Spring Boot Starters
+    implementation "org.flywaydb:flyway-core:${flywayVersion}"
+    runtimeOnly  "org.flywaydb:flyway-database-postgresql:${flywayVersion}"
+    implementation "org.postgresql:postgresql:42.7.4"
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+
+    // Spring Session (Redis-based session management for horizontal scaling)
+    implementation 'org.springframework.session:spring-session-data-redis'
+
+    // Security & JWT
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'io.jsonwebtoken:jjwt-api:0.12.3'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.3'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.3'
+
+    // OAuth2 Client
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
+
+    // WebSocket + Reactor (required for STOMP Broker Relay)
+    implementation 'org.springframework.boot:spring-boot-starter-websocket'
+    implementation 'io.projectreactor.netty:reactor-netty'
+    implementation 'io.projectreactor:reactor-core'
+
+    // Distributed Locking (ShedLock for Outbox Pattern Publisher)
+    implementation 'net.javacrumbs.shedlock:shedlock-spring:5.10.2'
+    implementation 'net.javacrumbs.shedlock:shedlock-provider-jdbc-template:5.10.2'
+
+    // Jackson Java 8 Date/Time (for proper JSON serialization in message payloads)
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
+
+    // pgvector Java Client (for semantic caching with embeddings)
+    implementation 'com.pgvector:pgvector:0.1.4'
+
+    // OpenAPI / Swagger
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.3.0'
+
+    // Database
+    implementation 'org.postgresql:postgresql'
+    implementation 'org.flywaydb:flyway-core'
+    runtimeOnly 'org.flywaydb:flyway-database-postgresql'
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+
+    // Redis
+    implementation 'io.lettuce:lettuce-core'
+
+    // AWS SDK
+    implementation platform('software.amazon.awssdk:bom:2.21.42')
+    implementation 'software.amazon.awssdk:s3'
+    implementation 'software.amazon.awssdk:secretsmanager'
+
+    // Stripe
+    implementation 'com.stripe:stripe-java:24.12.0'
+
+    // Observability & Distributed Tracing
+    implementation 'io.micrometer:micrometer-registry-prometheus'
+    implementation 'io.micrometer:micrometer-tracing-bridge-otel'
+    implementation 'io.opentelemetry:opentelemetry-exporter-otlp'
+    implementation 'io.opentelemetry:opentelemetry-exporter-zipkin:1.34.1'
+    // Removed wavefront dependency - not used (auto-config excluded in main class)
+
+    // Logging
+    implementation 'net.logstash.logback:logstash-logback-encoder:7.4'
+
+    // DTO Mapping
+    implementation 'org.mapstruct:mapstruct:1.5.5.Final'
+
+    // Utilities
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+    annotationProcessor 'org.mapstruct:mapstruct-processor:1.5.5.Final'
+    annotationProcessor 'org.projectlombok:lombok-mapstruct-binding:0.2.0'
+
+    // Testing
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'com.h2database:h2'
+    testImplementation 'org.testcontainers:testcontainers:1.19.3'
+    testImplementation 'org.testcontainers:junit-jupiter:1.19.3'
+    testImplementation 'org.testcontainers:postgresql:1.19.3'
+    testImplementation 'com.redis:testcontainers-redis:2.0.1'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+// Checkstyle Configuration
+checkstyle {
+    toolVersion = '10.12.5'
+    configFile = file("${rootDir}/config/checkstyle/checkstyle.xml")
+    ignoreFailures = false
+    maxWarnings = 0
+}
+
+tasks.withType(Checkstyle) {
+    reports {
+        xml.required = true
+        html.required = true
+    }
+}
+
+// Spotless Configuration
+spotless {
+    java {
+        target 'src/**/*.java'
+        googleJavaFormat('1.18.1').aosp().reflowLongStrings()
+        removeUnusedImports()
+        trimTrailingWhitespace()
+        endWithNewline()
+        importOrder('java', 'javax', 'org', 'com', 'ai.planmate', '')
+        // Add space between empty braces to satisfy checkstyle WhitespaceAround
+        custom 'emptyBraceSpace', { content ->
+            content.replaceAll(/\{\}/, '{ }')
+        }
+    }
+}
+
+// Ensure code style checks run with build (disabled temporarily)
+// tasks.named('check') {
+//     dependsOn 'checkstyleMain', 'checkstyleTest', 'spotlessCheck'
+// }

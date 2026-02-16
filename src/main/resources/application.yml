@@ -1,0 +1,253 @@
+spring:
+  application:
+    name: planmate-api
+  profiles:
+    active: ${SPRING_PROFILE:dev}
+
+  # Database
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/planmate}
+    username: ${DB_USER:planmate}
+    password: ${DB_PASS}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+
+  # JPA
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        use_sql_comments: false
+        jdbc:
+          batch_size: 20
+        order_inserts: true
+        order_updates: true
+
+  # Flyway
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+    validate-on-migrate: true
+
+  # Redis
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+
+  # Session Management
+  session:
+    store-type: ${SPRING_SESSION_STORE_TYPE:none}
+    redis:
+      namespace: ${SPRING_SESSION_REDIS_NAMESPACE:airello:session}
+
+  # Actuator
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+
+server:
+  port: ${SERVER_PORT:8080}
+  compression:
+    enabled: true
+    mime-types: application/json,application/xml,text/html,text/xml,text/plain
+  error:
+    include-message: never
+    include-stacktrace: never
+    include-exception: false
+
+# Management & Actuator
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: when-authorized
+      probes:
+        enabled: true
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLE_RATE:0.1}
+
+# OpenTelemetry
+otel:
+  zipkin:
+    endpoint: ${OTEL_ZIPKIN_ENDPOINT:#{null}}
+  tracing:
+    enabled: ${OTEL_TRACING_ENABLED:true}
+  service:
+    name: planmate-api
+
+# AWS (only used when artifacts-enabled=true)
+aws:
+  s3:
+    bucket: ${S3_BUCKET:planmate-artifacts}
+    region: ${AWS_REGION:eu-central-1}
+  secretsmanager:
+    enabled: ${AWS_SECRETS_ENABLED:false}
+
+# Stripe (only used when payments-enabled=true)
+stripe:
+  api-key: ${STRIPE_SECRET}
+  webhook-secret: ${STRIPE_WEBHOOK_SECRET:whsec_placeholder}
+
+# JWT Configuration
+jwt:
+  secret: ${JWT_SECRET}
+  access-token-expiration-ms: ${JWT_ACCESS_TOKEN_EXPIRATION:900000} # 15 minutes
+  refresh-token-expiration-ms: ${JWT_REFRESH_TOKEN_EXPIRATION:2592000000} # 30 days
+
+# Security Configuration
+security:
+  enable-auth: ${ENABLE_AUTH:true}
+
+# Google OAuth2 Configuration
+google:
+  client-id: ${GOOGLE_CLIENT_ID}
+  client-secret: ${GOOGLE_CLIENT_SECRET}
+  redirect-uri: ${GOOGLE_REDIRECT_URI:http://localhost:8080/auth/oauth2/google/callback}
+  frontend-redirect-uri: ${GOOGLE_FRONTEND_REDIRECT_URI:http://localhost:5173/auth/callback}
+
+# Application-specific
+planmate:
+  features:
+    ai-enabled: ${AI_ENABLED:true}
+    payments-enabled: ${PAYMENTS_ENABLED:false}
+    artifacts-enabled: ${ARTIFACTS_ENABLED:false}
+    redis-enabled: ${REDIS_ENABLED:true}
+  limits:
+    upload-max-size-mb: ${UPLOAD_MAX_SIZE_MB:50}
+    ai-requests-per-day-free: ${AI_REQUESTS_FREE:20}
+    ai-requests-per-day-demo: ${AI_REQUESTS_DEMO:1}
+    ai-requests-per-day-pro: ${AI_REQUESTS_PRO:200}
+  demo:
+    expiration-hours: ${DEMO_EXPIRATION_HOURS:24}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173,http://localhost:8080,http://localhost:4200}
+    allowed-methods: GET,POST,PUT,PATCH,DELETE,OPTIONS
+    allowed-headers: "*"
+    allow-credentials: true
+    max-age: 3600
+
+# AI Configuration
+ai:
+  queue:
+    key: ${AI_QUEUE_KEY:ai:jobs}
+  worker:
+    token: ${AI_WORKER_TOKEN}
+  semantic:
+    cache:
+      enabled: ${AI_SEMANTIC_CACHE_ENABLED:true}
+      similarity:
+        threshold: ${AI_SEMANTIC_CACHE_THRESHOLD:0.95}
+
+# OpenAI Configuration (used by semantic cache and embeddings)
+openai:
+  api:
+    key: ${OPENAI_API_KEY:}
+
+# Logging
+logging:
+  level:
+    root: INFO
+    ai.planmate: ${LOG_LEVEL:DEBUG}
+    org.springframework.web: ${LOG_LEVEL_WEB:INFO}
+    org.hibernate.SQL: ${LOG_LEVEL_SQL:INFO}
+    org.hibernate.type.descriptor.sql.BasicBinder: ${LOG_LEVEL_SQL_PARAMS:INFO}
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+
+---
+# DEV Profile
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+  jpa:
+    show-sql: true
+    properties:
+      hibernate:
+        use_sql_comments: true
+
+# Dev mode - optional authentication (set to false to disable JWT auth in dev)
+security:
+  enable-auth: ${ENABLE_AUTH:false}
+
+logging:
+  level:
+    ai.planmate: DEBUG
+
+management:
+  tracing:
+    sampling:
+      probability: 1.0
+
+---
+# STAGING Profile
+spring:
+  config:
+    activate:
+      on-profile: staging
+
+  jpa:
+    show-sql: false
+
+logging:
+  level:
+    ai.planmate: INFO
+
+management:
+  tracing:
+    sampling:
+      probability: 0.5
+
+---
+# PROD Profile
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+  jpa:
+    show-sql: false
+
+logging:
+  level:
+    root: WARN
+    ai.planmate: INFO
+    org.springframework.web: WARN
+
+management:
+  tracing:
+    sampling:
+      probability: 0.1
+  endpoint:
+    health:
+      show-details: never
