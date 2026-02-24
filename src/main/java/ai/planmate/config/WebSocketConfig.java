@@ -8,6 +8,8 @@ import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBr
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
 
+import ai.planmate.realtime.JwtHandshakeInterceptor;
+
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -51,6 +53,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     private final String stompRelayClientPasscode;
     private final String stompRelaySystemLogin;
     private final String stompRelaySystemPasscode;
+    private final JwtHandshakeInterceptor jwtHandshakeInterceptor;
 
     public WebSocketConfig(
             @Value("${rabbitmq.enabled:false}") boolean rabbitmqEnabled,
@@ -61,7 +64,8 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                     String stompRelayClientPasscode,
             @Value("${stomp.relay.system.login:guest}") @Nullable String stompRelaySystemLogin,
             @Value("${stomp.relay.system.passcode:guest}") @Nullable
-                    String stompRelaySystemPasscode) {
+                    String stompRelaySystemPasscode,
+            JwtHandshakeInterceptor jwtHandshakeInterceptor) {
         this.rabbitmqEnabled = rabbitmqEnabled;
         this.stompRelayHost = stompRelayHost;
         this.stompRelayPort = stompRelayPort;
@@ -69,6 +73,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         this.stompRelayClientPasscode = stompRelayClientPasscode;
         this.stompRelaySystemLogin = stompRelaySystemLogin;
         this.stompRelaySystemPasscode = stompRelaySystemPasscode;
+        this.jwtHandshakeInterceptor = jwtHandshakeInterceptor;
     }
 
     /**
@@ -134,11 +139,11 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
      */
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        // Register /ws endpoint with SockJS fallback
         registry.addEndpoint("/ws")
-                .setAllowedOriginPatterns("*") // TODO: Configure CORS in production
-                .withSockJS(); // Enable SockJS for browser compatibility
+                .addInterceptors(jwtHandshakeInterceptor)
+                .setAllowedOriginPatterns("*")
+                .withSockJS();
 
-        log.info("✅ WebSocket endpoint registered: /ws (SockJS enabled)");
+        log.info("✅ WebSocket endpoint registered: /ws (SockJS + JWT auth enabled)");
     }
 }

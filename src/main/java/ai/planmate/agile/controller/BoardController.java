@@ -14,11 +14,12 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import ai.planmate.agile.dto.BoardColumnDto;
 import ai.planmate.agile.dto.BoardViewResponse;
 import ai.planmate.agile.dto.CreateColumnRequest;
 import ai.planmate.agile.dto.MoveIssueRequest;
 import ai.planmate.agile.dto.ReorderColumnsRequest;
-import ai.planmate.agile.entity.BoardColumn;
+import ai.planmate.agile.dto.UpdateColumnRequest;
 import ai.planmate.agile.service.BoardService;
 
 import jakarta.validation.Valid;
@@ -41,17 +42,29 @@ public class BoardController {
 
     @PostMapping("/columns")
     @ResponseStatus(HttpStatus.CREATED)
-    public BoardColumn createColumn(
+    public BoardColumnDto createColumn(
             @PathVariable UUID projectId, @Valid @RequestBody CreateColumnRequest request) {
-        return boardService.createColumn(projectId, request.getName());
+        return BoardColumnDto.fromEntity(
+                boardService.createColumn(
+                        projectId,
+                        request.getName(),
+                        request.getCategory(),
+                        request.getWipLimit(),
+                        request.getIsDefault()));
     }
 
     @PutMapping("/columns/{columnId}")
-    public BoardColumn renameColumn(
+    public BoardColumnDto updateColumn(
             @PathVariable UUID projectId,
             @PathVariable UUID columnId,
-            @Valid @RequestBody CreateColumnRequest request) {
-        return boardService.renameColumn(columnId, request.getName());
+            @Valid @RequestBody UpdateColumnRequest request) {
+        return BoardColumnDto.fromEntity(
+                boardService.updateColumn(
+                        columnId,
+                        request.getName(),
+                        request.getWipLimit(),
+                        request.getCategory(),
+                        request.getIsDefault()));
     }
 
     @DeleteMapping("/columns/{columnId}")

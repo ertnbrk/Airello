@@ -22,7 +22,6 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-/** JWT authentication filter that validates JWT tokens on each request */
 @RequiredArgsConstructor
 @Slf4j
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
@@ -32,17 +31,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(
-        @NonNull HttpServletRequest request,
-        @NonNull HttpServletResponse response,
-        @NonNull FilterChain filterChain)
-        throws ServletException, IOException {
+            @NonNull HttpServletRequest request,
+            @NonNull HttpServletResponse response,
+            @NonNull FilterChain filterChain)
+            throws ServletException, IOException {
 
         String path = request.getRequestURI();
 
-        // Skip public endpoints
         if (path.startsWith("/auth/")
-            || path.startsWith("/actuator/")
-            || path.startsWith("/error")) {
+                || path.startsWith("/actuator/")
+                || path.startsWith("/error")) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -61,25 +59,25 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     return;
                 }
 
-                // 🔥 CRITICAL FIX: Set authorities properly
                 List<SimpleGrantedAuthority> authorities =
-                    List.of(new SimpleGrantedAuthority("ROLE_" + user.getUserType().name()));
+                        List.of(
+                                new SimpleGrantedAuthority("ROLE_USER"),
+                                new SimpleGrantedAuthority(
+                                        "ROLE_" + user.getUserType().name()));
 
                 UsernamePasswordAuthenticationToken authentication =
-                    new UsernamePasswordAuthenticationToken(
-                        user,
-                        null,
-                        authorities
-                    );
+                        new UsernamePasswordAuthenticationToken(
+                                userId.toString(), null, authorities);
 
                 authentication.setDetails(
-                    new WebAuthenticationDetailsSource().buildDetails(request));
+                        new WebAuthenticationDetailsSource().buildDetails(request));
 
                 SecurityContextHolder.getContext().setAuthentication(authentication);
 
-                log.debug("User authenticated: {} with authorities {}",
-                    user.getEmail(),
-                    authorities);
+                log.debug(
+                        "User authenticated: {} with authorities {}",
+                        user.getEmail(),
+                        authorities);
             }
 
         } catch (Exception e) {
@@ -94,6 +92,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         if (bearerToken != null && bearerToken.startsWith("Bearer ")) {
             return bearerToken.substring(7);
+        }
+
+        String path = request.getRequestURI();
+        if (path.startsWith("/ws")) {
+            String tokenParam = request.getParameter("token");
+            if (tokenParam != null && !tokenParam.isEmpty()) {
+                return tokenParam;
+            }
         }
 
         return null;

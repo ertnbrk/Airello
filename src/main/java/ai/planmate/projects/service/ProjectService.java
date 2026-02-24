@@ -18,6 +18,7 @@ import ai.planmate.projects.entity.Workspace;
 import ai.planmate.projects.repository.ProjectRepository;
 import ai.planmate.projects.repository.WorkspaceMemberRepository;
 import ai.planmate.projects.repository.WorkspaceRepository;
+import ai.planmate.shared.exception.ConflictException;
 import ai.planmate.shared.exception.ResourceNotFoundException;
 
 import lombok.RequiredArgsConstructor;
@@ -44,6 +45,12 @@ public class ProjectService {
                 workspaceRepository
                         .findById(request.getWorkspaceId())
                         .orElseThrow(() -> new ResourceNotFoundException("Workspace not found"));
+
+        if (projectRepository.existsByWorkspaceIdAndKey(
+                request.getWorkspaceId(), request.getKey())) {
+            throw new ConflictException(
+                    "Project key already exists in this workspace", "PROJECT_KEY_ALREADY_EXISTS");
+        }
 
         Project project = new Project();
         project.setWorkspace(workspace);

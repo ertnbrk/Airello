@@ -10,22 +10,28 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import ai.planmate.agile.dto.BoardColumnDto;
 import ai.planmate.agile.dto.BoardColumnResponse;
 import ai.planmate.agile.dto.BoardViewResponse;
 import ai.planmate.agile.dto.IssueSummaryDto;
 import ai.planmate.agile.entity.BoardColumn;
+import ai.planmate.agile.entity.ColumnCategory;
 import ai.planmate.agile.entity.Issue;
 import ai.planmate.agile.mapper.IssueMapper;
 import ai.planmate.agile.repository.BoardColumnRepository;
 import ai.planmate.agile.repository.IssueRepository;
+import ai.planmate.auth.entity.AppUser;
 import ai.planmate.projects.entity.Project;
 import ai.planmate.projects.repository.ProjectRepository;
 import ai.planmate.realtime.RealtimeEvent;
 import ai.planmate.realtime.RealtimeEventService;
+import ai.planmate.shared.exception.ConflictException;
 import ai.planmate.shared.exception.ResourceNotFoundException;
 
 import lombok.RequiredArgsConstructor;
@@ -47,15 +53,26 @@ public class BoardService {
 
     @Transactional
     public List<BoardColumn> createDefaultColumns(Project project) {
+        log.info("Creating default columns for project: {}", project.getId());
         List<BoardColumn> columns = new ArrayList<>();
+        UUID currentUserId = getCurrentUserId();
+
         for (int i = 0; i < DEFAULT_COLUMNS.length; i++) {
             BoardColumn col = new BoardColumn();
             col.setProject(project);
             col.setName(DEFAULT_COLUMNS[i]);
             col.setPosition(i);
             col.setIsDefault(i == 0);
+            col.setCategory(determineCategoryFromName(DEFAULT_COLUMNS[i]));
+            col.setCreatedBy(currentUserId);
+            col.setUpdatedBy(currentUserId);
             columns.add(boardColumnRepository.save(col));
         }
+
+        log.info(
+                "Created {} default columns for project: {}",
+                columns.size(),
+                project.getId());
         return columns;
     }
 
@@ -63,7 +80,6 @@ public class BoardService {
     public BoardViewResponse getBoard(UUID projectId, UUID assigneeId, String label) {
         List<BoardColumn> columns = boardColumnRepository.findByProjectIdOrderByPosition(projectId);
 
-        // If no dynamic columns exist yet, return legacy view
         if (columns.isEmpty()) {
             return getLegacyBoard(projectId, assigneeId, label);
         }
@@ -110,11 +126,12 @@ public class BoardService {
                             .name(col.getName())
                             .position(col.getPosition())
                             .isDefault(col.getIsDefault())
+                            .category(col.getCategory())
+                            .wipLimit(col.getWipLimit())
                             .issues(issuesInColumn)
                             .build());
         }
 
-        // Legacy compatibility: keep the old map too
         BoardViewResponse response = new BoardViewResponse();
         response.setDynamicColumns(columnResponses);
         return response;
@@ -164,82 +181,197 @@ public class BoardService {
     }
 
     @Transactional
-    public BoardColumn createColumn(UUID projectId, String name) {
+    public BoardColumn createColumn(
+            UUID projectId,
+            String name,
+            ColumnCategory category,
+            Integer wipLimit,
+            Boolean isDefault) {
+        UUID userId = getCurrentUserId();
+
+        log.info(
+                "Creating column: projectId={}, name={}, category={}, wipLimit={}, isDefault={},"
+                        + " userId={}",
+                projectId,
+                name,
+                category,
+                wipLimit,
+                isDefault,
+                userId);
+
         Project project =
                 projectRepository
                         .findByIdAndNotDeleted(projectId)
                         .orElseThrow(() -> new ResourceNotFoundException("Project not found"));
 
-        int nextPosition =
-                boardColumnRepository
-                        .findLastByProjectId(projectId)
-                        .map(c -> c.getPosition() + 1)
-                        .orElse(0);
+        String trimmedName = name.trim();
+        if (trimmedName.length() < 1 || trimmedName.length() > 60) {
+            throw new IllegalArgumentException("Column name must be between 1 and 60 characters");
+        }
+
+        if (wipLimit != null && wipLimit < 1) {
+            throw new IllegalArgumentException("WIP limit must be at least 1 if specified");
+        }
+
+        Boolean isDefaultValue = isDefault != null ? isDefault : false;
+
+        if (isDefaultValue && boardColumnRepository.existsDefaultByProjectId(projectId)) {
+            throw new ConflictException(
+                    "A default column already exists for this project", "DEFAULT_COLUMN_EXISTS");
+        }
+
+        Integer maxPosition = boardColumnRepository.findMaxPositionByProjectId(projectId);
+        int nextPosition = (maxPosition != null && maxPosition >= 0) ? maxPosition + 1 : 0;
+
+        ColumnCategory columnCategory = category != null ? category : ColumnCategory.CUSTOM;
 
         BoardColumn column = new BoardColumn();
         column.setProject(project);
-        column.setName(name);
+        column.setName(trimmedName);
         column.setPosition(nextPosition);
+        column.setIsDefault(isDefaultValue);
+        column.setCategory(columnCategory);
+        column.setWipLimit(wipLimit);
+        column.setCreatedBy(userId);
+        column.setUpdatedBy(userId);
+
         column = boardColumnRepository.save(column);
 
+        log.info(
+                "Column created: id={}, projectId={}, name={}, position={}, category={}, userId={}",
+                column.getId(),
+                projectId,
+                trimmedName,
+                nextPosition,
+                columnCategory,
+                userId);
+
         realtimeEventService.broadcastBoardUpdate(
-                projectId, RealtimeEvent.of("BOARD_COLUMN_CREATED", column));
+                projectId,
+                RealtimeEvent.of("BOARD_COLUMN_CREATED", BoardColumnDto.fromEntity(column)));
+
+        return column;
+    }
+
+    @Transactional
+    public BoardColumn createColumn(UUID projectId, String name) {
+        return createColumn(projectId, name, null, null, null);
+    }
+
+    @Transactional
+    public BoardColumn updateColumn(
+            UUID columnId, String name, Integer wipLimit, ColumnCategory category, Boolean isDefault) {
+        UUID userId = getCurrentUserId();
+
+        log.info(
+                "Updating column: id={}, name={}, wipLimit={}, category={}, isDefault={}, userId={}",
+                columnId,
+                name,
+                wipLimit,
+                category,
+                isDefault,
+                userId);
+
+        BoardColumn column =
+                boardColumnRepository
+                        .findByIdAndNotDeleted(columnId)
+                        .orElseThrow(() -> new ResourceNotFoundException("Column not found"));
+
+        if (name != null) {
+            String trimmedName = name.trim();
+            if (trimmedName.length() < 1 || trimmedName.length() > 60) {
+                throw new IllegalArgumentException(
+                        "Column name must be between 1 and 60 characters");
+            }
+            column.setName(trimmedName);
+        }
+
+        if (wipLimit != null && wipLimit < 1) {
+            throw new IllegalArgumentException("WIP limit must be at least 1 if specified");
+        }
+
+        if (wipLimit != null) {
+            column.setWipLimit(wipLimit);
+        }
+
+        if (category != null) {
+            column.setCategory(category);
+        }
+
+        if (isDefault != null) {
+            if (isDefault && !column.getIsDefault()) {
+                if (boardColumnRepository.existsDefaultByProjectId(
+                        column.getProject().getId())) {
+                    throw new ConflictException(
+                            "A default column already exists for this project",
+                            "DEFAULT_COLUMN_EXISTS");
+                }
+            }
+            column.setIsDefault(isDefault);
+        }
+
+        column.setUpdatedBy(userId);
+        column = boardColumnRepository.save(column);
+
+        log.info("Column updated: id={}, userId={}", columnId, userId);
+
+        realtimeEventService.broadcastBoardUpdate(
+                column.getProject().getId(),
+                RealtimeEvent.of("BOARD_COLUMN_UPDATED", BoardColumnDto.fromEntity(column)));
+
         return column;
     }
 
     @Transactional
     public BoardColumn renameColumn(UUID columnId, String newName) {
-        BoardColumn column =
-                boardColumnRepository
-                        .findById(columnId)
-                        .orElseThrow(() -> new ResourceNotFoundException("Column not found"));
-
-        column.setName(newName);
-        column.setUpdatedAt(Instant.now());
-        column = boardColumnRepository.save(column);
-
-        realtimeEventService.broadcastBoardUpdate(
-                column.getProject().getId(), RealtimeEvent.of("BOARD_COLUMN_UPDATED", column));
-        return column;
+        return updateColumn(columnId, newName, null, null, null);
     }
 
     @Transactional
     public void deleteColumn(UUID columnId) {
+        UUID userId = getCurrentUserId();
+
+        log.info("Deleting column: id={}, userId={}", columnId, userId);
+
         BoardColumn column =
                 boardColumnRepository
-                        .findById(columnId)
+                        .findByIdAndNotDeleted(columnId)
                         .orElseThrow(() -> new ResourceNotFoundException("Column not found"));
 
         UUID projectId = column.getProject().getId();
 
-        // Move issues to default/first column
-        BoardColumn fallback =
-                boardColumnRepository
-                        .findDefaultByProjectId(projectId)
-                        .orElseGet(
-                                () ->
-                                        boardColumnRepository
-                                                .findByProjectIdOrderByPosition(projectId)
-                                                .stream()
-                                                .filter(c -> !c.getId().equals(columnId))
-                                                .findFirst()
-                                                .orElse(null));
-
-        if (fallback != null) {
-            List<Issue> orphanedIssues =
-                    issueRepository.findByProjectId(projectId).stream()
-                            .filter(
-                                    i ->
-                                            i.getBoardColumn() != null
-                                                    && i.getBoardColumn().getId().equals(columnId))
-                            .toList();
-            for (Issue issue : orphanedIssues) {
-                issue.setBoardColumn(fallback);
-                issueRepository.save(issue);
-            }
+        if (column.getIsDefault()) {
+            throw new ConflictException(
+                    "Cannot delete the default column", "CANNOT_DELETE_DEFAULT_COLUMN");
         }
 
-        boardColumnRepository.delete(column);
+        List<Issue> issuesInColumn =
+                issueRepository.findByProjectId(projectId).stream()
+                        .filter(
+                                i ->
+                                        i.getBoardColumn() != null
+                                                && i.getBoardColumn().getId().equals(columnId))
+                        .toList();
+
+        if (!issuesInColumn.isEmpty()) {
+            throw new ConflictException(
+                    String.format(
+                            "Cannot delete column with %d issue(s). Move issues to another column"
+                                    + " first.",
+                            issuesInColumn.size()),
+                    "COLUMN_IN_USE");
+        }
+
+        column.setDeletedAt(Instant.now());
+        column.setUpdatedBy(userId);
+        boardColumnRepository.save(column);
+
+        log.info(
+                "Column soft-deleted: id={}, projectId={}, issuesCount={}, userId={}",
+                columnId,
+                projectId,
+                issuesInColumn.size(),
+                userId);
 
         realtimeEventService.broadcastBoardUpdate(
                 projectId,
@@ -248,18 +380,39 @@ public class BoardService {
 
     @Transactional
     public void reorderColumns(UUID projectId, List<UUID> columnIds) {
+        UUID userId = getCurrentUserId();
+
+        log.info(
+                "Reordering columns: projectId={}, columnCount={}, userId={}",
+                projectId,
+                columnIds.size(),
+                userId);
+
         List<BoardColumn> columns = boardColumnRepository.findByProjectIdOrderByPosition(projectId);
         java.util.Map<UUID, BoardColumn> columnMap =
                 columns.stream().collect(Collectors.toMap(BoardColumn::getId, c -> c));
+
+        for (UUID columnId : columnIds) {
+            if (!columnMap.containsKey(columnId)) {
+                throw new ResourceNotFoundException(
+                        "Column not found or belongs to different project: " + columnId);
+            }
+        }
 
         for (int i = 0; i < columnIds.size(); i++) {
             BoardColumn col = columnMap.get(columnIds.get(i));
             if (col != null) {
                 col.setPosition(i);
-                col.setUpdatedAt(Instant.now());
+                col.setUpdatedBy(userId);
                 boardColumnRepository.save(col);
             }
         }
+
+        log.info(
+                "Columns reordered: projectId={}, count={}, userId={}",
+                projectId,
+                columnIds.size(),
+                userId);
 
         realtimeEventService.broadcastBoardUpdate(
                 projectId, RealtimeEvent.of("BOARD_COLUMNS_REORDERED", columnIds));
@@ -279,7 +432,7 @@ public class BoardService {
 
         BoardColumn targetColumn =
                 boardColumnRepository
-                        .findById(targetColumnId)
+                        .findByIdAndNotDeleted(targetColumnId)
                         .orElseThrow(
                                 () -> new ResourceNotFoundException("Target column not found"));
 
@@ -290,7 +443,6 @@ public class BoardService {
 
         issue.setBoardColumn(targetColumn);
 
-        // Compute new orderIndex
         BigDecimal newOrder = computeOrderIndex(targetColumnId, afterIssueId, beforeIssueId);
         issue.setOrderIndex(newOrder);
         issue = issueRepository.save(issue);
@@ -342,7 +494,6 @@ public class BoardService {
             }
         }
 
-        // Default: place at end
         return BigDecimal.valueOf(1000);
     }
 
@@ -366,5 +517,31 @@ public class BoardService {
 
     public List<BoardColumn> getColumns(UUID projectId) {
         return boardColumnRepository.findByProjectIdOrderByPosition(projectId);
+    }
+
+    private UUID getCurrentUserId() {
+        try {
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication != null && authentication.getPrincipal() instanceof AppUser user) {
+                return user.getId();
+            }
+        } catch (Exception e) {
+            log.warn("Could not extract current user ID: {}", e.getMessage());
+        }
+        return null;
+    }
+
+    private ColumnCategory determineCategoryFromName(String name) {
+        String lowerName = name.toLowerCase();
+        if (lowerName.contains("backlog")) {
+            return ColumnCategory.BACKLOG;
+        } else if (lowerName.contains("done")) {
+            return ColumnCategory.DONE;
+        } else if (lowerName.contains("progress")) {
+            return ColumnCategory.IN_PROGRESS;
+        } else if (lowerName.contains("to do")) {
+            return ColumnCategory.TODO;
+        }
+        return ColumnCategory.CUSTOM;
     }
 }

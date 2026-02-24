@@ -17,10 +17,10 @@ import org.springframework.web.bind.annotation.RestController;
 import ai.planmate.agile.dto.CreateEpicRequest;
 import ai.planmate.agile.dto.CreateIssueRequest;
 import ai.planmate.agile.dto.CreateSprintRequest;
+import ai.planmate.agile.dto.EpicDto;
 import ai.planmate.agile.dto.IssueResponse;
 import ai.planmate.agile.dto.SprintResponse;
 import ai.planmate.agile.dto.UpdateIssueRequest;
-import ai.planmate.agile.entity.Epic;
 import ai.planmate.agile.mapper.EnumMapper;
 import ai.planmate.agile.mapper.IssueMapper;
 import ai.planmate.agile.mapper.SprintMapper;
@@ -43,7 +43,7 @@ public class AgileController {
     // Epic endpoints
     @PostMapping("/epics")
     @ResponseStatus(HttpStatus.CREATED)
-    public Epic createEpic(
+    public EpicDto createEpic(
             @PathVariable UUID projectId, @Valid @RequestBody CreateEpicRequest request) {
         request.setProjectId(projectId);
         // Implementation simplified - would need EpicService
@@ -51,8 +51,8 @@ public class AgileController {
     }
 
     @GetMapping("/epics")
-    public List<Epic> listEpics(@PathVariable UUID projectId) {
-        return epicRepository.findByProjectId(projectId);
+    public List<EpicDto> listEpics(@PathVariable UUID projectId) {
+        return epicRepository.findByProjectId(projectId).stream().map(EpicDto::fromEntity).toList();
     }
 
     // Issue endpoints

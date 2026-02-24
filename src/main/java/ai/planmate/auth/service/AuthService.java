@@ -173,6 +173,11 @@ public class AuthService {
                         () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
     }
 
+    /** Find user by ID only if active (not deleted, not inactive) */
+    public java.util.Optional<AppUser> findByIdActive(UUID userId) {
+        return userRepository.findById(userId).filter(user -> !user.isDeleted() && user.getActive());
+    }
+
     /** Map AppUser entity to UserDto */
     public UserDto mapToUserDto(AppUser user) {
         return new UserDto(

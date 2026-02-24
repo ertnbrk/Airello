@@ -19,6 +19,11 @@ public interface ProjectRepository extends JpaRepository<Project, UUID> {
     Optional<Project> findByWorkspaceIdAndKey(UUID workspaceId, String key);
 
     @Query(
+            "SELECT CASE WHEN COUNT(p) > 0 THEN true ELSE false END FROM Project p WHERE"
+                    + " p.workspace.id = :workspaceId AND p.key = :key AND p.deletedAt IS NULL")
+    boolean existsByWorkspaceIdAndKey(UUID workspaceId, String key);
+
+    @Query(
             "SELECT p FROM Project p WHERE p.workspace.id = :workspaceId AND p.deletedAt IS NULL"
                     + " ORDER BY p.createdAt DESC")
     List<Project> findByWorkspaceId(UUID workspaceId);
