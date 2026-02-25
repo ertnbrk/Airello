@@ -28,7 +28,16 @@
       "Bash(docker ps:*)",
       "Bash(docker rm:*)",
       "Bash(test:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(mkdir:*)",
+      "Bash(mv:*)",
+      "Bash(rmdir:*)",
+      "Bash(rm:*)",
+      "Bash(for dto in BoardColumnDto BoardColumnResponse BoardView BoardViewResponse CreateColumnRequest CreateEpicRequest CreateIssueRequest CreateSprintRequest EpicDto IssueResponse IssueSummaryDto MoveIssueRequest PlanningResult ReorderColumnsRequest SprintResponse UpdateColumnRequest UpdateIssueRequest)",
+      "Bash(do echo \"=== $dto ===\")",
+      "Bash(done)",
+      "Bash(bash:*)",
+      "Bash(tree:*)"
     ],
     "deny": [],
     "ask": []

@@ -1,20 +1,16 @@
 version: '3.8'
 
 services:
-  # ================================
-  # Core Services (Required)
-  # ================================
-
   postgres:
     image: pgvector/pgvector:pg16
     container_name: planmate-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: planmate
-      POSTGRES_USER: planmate
-      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: ${POSTGRES_DB:-planmate}
+      POSTGRES_USER: ${POSTGRES_USER:-planmate}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secret}
     ports:
-      - "5433:5432"
+      - "${POSTGRES_PORT:-5433}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -25,17 +21,13 @@ services:
     networks:
       - planmate-network
 
-  # ================================
-  # Redis Stack (Redis + RedisJSON + RediSearch + RedisInsight)
-  # Enables: Session Management, AI Job Queue, Semantic Caching
-  # ================================
   redis:
     image: redis/redis-stack:latest
-    container_name: planmate-redis-stack
+    container_name: planmate-redis
     restart: unless-stopped
     ports:
-      - "6379:6379"   # Redis Protocol
-      - "8001:8001"   # RedisInsight UI
+      - "${REDIS_PORT:-6379}:6379"
+      - "${REDIS_INSIGHT_PORT:-8001}:8001"
     volumes:
       - redis_data:/data
     environment:
@@ -48,119 +40,36 @@ services:
     networks:
       - planmate-network
 
-  # ================================
-  # Application
-  # ================================
-
-  # ================================
-  # AI Worker (Python + LangChain)
-  # ================================
-  ai-worker:
+  api:
     build:
-      context: ./ai-worker
-      dockerfile: Dockerfile
-    container_name: planmate-ai-worker
-    restart: unless-stopped
-    environment:
-      # Redis Configuration
-      REDIS_URL: redis://redis:6379
-      AI_QUEUE_KEY: ai:jobs
-
-      # Java API Callback
-      JAVA_CALLBACK_URL: http://planmate-api:8080/v1/ai/callback
-      WORKER_TOKEN: ${WORKER_TOKEN:-changeme-worker-secret-token}
-
-      # LLM Provider Configuration
-      LLM_TYPE: ${LLM_TYPE:-mock}
-
-      # OpenAI Configuration
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
-
-      # Ollama Configuration (optional)
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama2}
-
-      # Worker Configuration
-      WORKER_POLL_TIMEOUT: ${WORKER_POLL_TIMEOUT:-10}
-    depends_on:
-      redis:
-        condition: service_healthy
-      planmate-api:
-        condition: service_healthy
-    networks:
-      - planmate-network
-
-  planmate-api:
-    build:
-      context: .
+      context: ./services/api
       dockerfile: Dockerfile
     container_name: planmate-api
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "${SERVER_PORT:-8080}:8080"
     environment:
-      # Spring Profile
       SPRING_PROFILE: ${SPRING_PROFILE:-dev}
-
-      # Database Configuration
       DB_URL: jdbc:postgresql://postgres:5432/planmate
-      DB_USER: planmate
-      DB_PASS: secret
-
-      # Server Configuration
+      DB_USER: ${POSTGRES_USER:-planmate}
+      DB_PASS: ${POSTGRES_PASSWORD:-secret}
       SERVER_PORT: 8080
-
-      # JWT Configuration (CHANGE IN PRODUCTION!)
       JWT_SECRET: ${JWT_SECRET:-xtozE6ozyuhgkcJC7boSTI65p2Kwv4aUWRU1oYR2c4k=}
       JWT_ACCESS_TOKEN_EXPIRATION: ${JWT_ACCESS_TOKEN_EXPIRATION:-900000}
       JWT_REFRESH_TOKEN_EXPIRATION: ${JWT_REFRESH_TOKEN_EXPIRATION:-2592000000}
-
-      # Security
       ENABLE_AUTH: ${ENABLE_AUTH:-true}
-
-      # Feature Flags
       AI_ENABLED: ${AI_ENABLED:-true}
-      PAYMENTS_ENABLED: ${PAYMENTS_ENABLED:-false}
-      ARTIFACTS_ENABLED: ${ARTIFACTS_ENABLED:-false}
       REDIS_ENABLED: ${REDIS_ENABLED:-true}
-
-      # Redis Configuration
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
       SPRING_SESSION_STORE_TYPE: redis
       SPRING_SESSION_REDIS_NAMESPACE: "airello:session"
-
-      # CORS Configuration
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173,http://localhost:8080}
-
-      # Logging
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:8080}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      LOG_LEVEL_WEB: ${LOG_LEVEL_WEB:-INFO}
-      LOG_LEVEL_SQL: ${LOG_LEVEL_SQL:-INFO}
-
-      # AI Worker Configuration
       AI_QUEUE_KEY: ${AI_QUEUE_KEY:-ai:jobs}
       AI_WORKER_TOKEN: ${WORKER_TOKEN:-changeme-worker-secret-token}
-
-      # Google OAuth2 (optional)
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
-      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-http://localhost:8080/auth/oauth2/google/callback}
-
-      # Stripe Configuration (if PAYMENTS_ENABLED=true)
-      STRIPE_SECRET: ${STRIPE_SECRET:-sk_test_placeholder}
-      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-whsec_placeholder}
-
-      # Demo Mode Configuration
-      DEMO_EXPIRATION_HOURS: ${DEMO_EXPIRATION_HOURS:-24}
-
-      # Limits
-      UPLOAD_MAX_SIZE_MB: ${UPLOAD_MAX_SIZE_MB:-50}
-      AI_REQUESTS_FREE: ${AI_REQUESTS_FREE:-20}
-      AI_REQUESTS_DEMO: ${AI_REQUESTS_DEMO:-1}
-      AI_REQUESTS_PRO: ${AI_REQUESTS_PRO:-200}
-
     depends_on:
       postgres:
         condition: service_healthy
@@ -175,12 +84,33 @@ services:
     networks:
       - planmate-network
 
+  ai-worker:
+    build:
+      context: ./services/ai-worker
+      dockerfile: Dockerfile
+    container_name: planmate-ai-worker
+    restart: unless-stopped
+    environment:
+      REDIS_URL: redis://redis:6379
+      AI_QUEUE_KEY: ${AI_QUEUE_KEY:-ai:jobs}
+      JAVA_CALLBACK_URL: http://api:8080/v1/ai/callback
+      WORKER_TOKEN: ${WORKER_TOKEN:-changeme-worker-secret-token}
+      LLM_TYPE: ${LLM_TYPE:-mock}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      WORKER_POLL_TIMEOUT: ${WORKER_POLL_TIMEOUT:-10}
+    depends_on:
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    networks:
+      - planmate-network
+
 networks:
   planmate-network:
     driver: bridge
 
 volumes:
   postgres_data:
-    driver: local
   redis_data:
-    driver: local
